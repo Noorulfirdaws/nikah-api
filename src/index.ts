@@ -8,7 +8,7 @@ import subscriptionRoutes from './routes/subscriptions'
 import webhookRoutes      from './routes/webhooks'
 
 const app  = express()
-const PORT = parseInt(process.env.PORT ?? '3000', 10)
+const PORT = parseInt(process.env.PORT ?? '3200', 10)
 
 // ── Security headers ──────────────────────────────────────────────────────────
 app.use(helmet())
