@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
+import compression from 'compression'
 import rateLimit from 'express-rate-limit'
 
 import authRoutes         from './routes/auth'
@@ -29,6 +30,7 @@ app.disable('x-powered-by')
 
 // ── Security headers ──────────────────────────────────────────────────────────
 app.use(helmet())
+app.use(compression())
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? '').split(',').map(o => o.trim()).filter(Boolean)

@@ -22,6 +22,7 @@ model User {
   subscription     Subscription?
 
   @@index([email])
+  @@index([createdAt]) // supports the admin listing's orderBy(createdAt desc)
 }
 
 model Subscription {
