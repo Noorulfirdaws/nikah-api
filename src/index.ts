@@ -41,7 +41,19 @@ app.use(cors({
 }))
 
 // ── Stripe webhook — raw body MUST come before express.json() ─────────────────
-app.use('/api/webhooks', express.raw({ type: 'application/json' }), webhookRoutes)
+// Unauthenticated until signature verification runs inside the route handler,
+// so it needs its own guardrails: a generous rate limit (real Stripe traffic
+// never approaches this) and an explicit size limit (without one, the raw
+// body is fully buffered into memory before verification ever runs — a DoS
+// vector on its own). Stripe's own payloads are well under 1mb.
+app.use('/api/webhooks', rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests' },
+}))
+app.use('/api/webhooks', express.raw({ type: 'application/json', limit: '1mb' }), webhookRoutes)
 
 // ── Body parsing ──────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '16kb' }))
