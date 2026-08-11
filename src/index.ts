@@ -16,9 +16,13 @@ validateEnv()
 const app  = express()
 const PORT = parseInt(process.env.PORT ?? '3200', 10)
 
-// Railway (and most PaaS) terminate TLS at a reverse proxy. Without this,
-// req.ip is the proxy's IP and per-IP rate limiting silently stops working.
-app.set('trust proxy', 1)
+// Railway's edge network is a variable-depth proxy chain (not a fixed single
+// hop) — trusting only 1 hop caused rate-limit keys to fragment across
+// different edge nodes, silently weakening per-IP limits. Trusting the full
+// X-Forwarded-For chain is the correct setting for single-tenant PaaS
+// platforms like Railway/Heroku/Render, where the edge is the only thing
+// in front of the app (there's no untrusted intermediate proxy to spoof it).
+app.set('trust proxy', true)
 
 // Don't advertise the framework
 app.disable('x-powered-by')
