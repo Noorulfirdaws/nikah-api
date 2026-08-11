@@ -6,9 +6,22 @@ import rateLimit from 'express-rate-limit'
 import authRoutes         from './routes/auth'
 import subscriptionRoutes from './routes/subscriptions'
 import webhookRoutes      from './routes/webhooks'
+import adminRoutes        from './routes/admin'
+import { validateEnv } from './lib/env'
+import { errorHandler } from './middleware/errors'
+
+// Fail fast on missing/weak secrets — never boot in an insecure state.
+validateEnv()
 
 const app  = express()
 const PORT = parseInt(process.env.PORT ?? '3200', 10)
+
+// Railway (and most PaaS) terminate TLS at a reverse proxy. Without this,
+// req.ip is the proxy's IP and per-IP rate limiting silently stops working.
+app.set('trust proxy', 1)
+
+// Don't advertise the framework
+app.disable('x-powered-by')
 
 // ── Security headers ──────────────────────────────────────────────────────────
 app.use(helmet())
@@ -32,19 +45,32 @@ app.use(express.json({ limit: '16kb' }))
 // ── Rate limiting ─────────────────────────────────────────────────────────────
 app.use('/api/auth', rateLimit({
   windowMs: 15 * 60 * 1000, // 15 min
-  max: 20,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: { error: 'Too many requests, please try again later' },
 }))
 
 app.use('/api/subscriptions', rateLimit({
   windowMs: 60 * 1000, // 1 min
   max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests' },
+}))
+
+app.use('/api/admin', rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: { error: 'Too many requests' },
 }))
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/api/auth',          authRoutes)
 app.use('/api/subscriptions', subscriptionRoutes)
+app.use('/api/admin',         adminRoutes)
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
@@ -55,6 +81,9 @@ app.get('/health', (_req, res) => {
 app.use((_req, res) => {
   res.status(404).json({ error: 'Route not found' })
 })
+
+// ── Global error handler (must be last) ───────────────────────────────────────
+app.use(errorHandler)
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, '0.0.0.0', () => {

@@ -3,12 +3,15 @@ import Stripe from 'stripe'
 import { stripe } from '../lib/stripe'
 import { prisma } from '../lib/prisma'
 import { SubscriptionStatus, Plan } from '@prisma/client'
+import { asyncHandler } from '../middleware/errors'
 
 const router = Router()
 
+const VALID_PLANS: Plan[] = ['FREE', 'PREMIUM', 'FAMILY']
+
 // POST /api/webhooks/stripe
 // Raw body required — mounted before express.json() in index.ts
-router.post('/stripe', async (req: Request, res: Response) => {
+router.post('/stripe', asyncHandler(async (req: Request, res: Response) => {
   const sig = req.headers['stripe-signature']
   if (!sig) { res.status(400).send('Missing stripe-signature header'); return }
 
@@ -34,12 +37,22 @@ router.post('/stripe', async (req: Request, res: Response) => {
     case 'customer.subscription.created': {
       const sub = event.data.object as Stripe.Subscription
       const status = statusMap[sub.status] ?? 'INCOMPLETE'
-      const planMeta = (sub.metadata?.plan ?? 'premium').toUpperCase() as Plan
+
+      // Metadata is set by our /subscriptions/create route, but never trust
+      // it blindly: validate the user exists and the plan value is known
+      // before writing to the database.
+      const userId = sub.metadata?.userId
+      if (!userId || !(await prisma.user.findUnique({ where: { id: userId } }))) {
+        console.warn('[webhook] subscription event without valid userId metadata:', sub.id)
+        break
+      }
+      const rawPlan = (sub.metadata?.plan ?? 'premium').toUpperCase()
+      const planMeta: Plan = VALID_PLANS.includes(rawPlan as Plan) ? (rawPlan as Plan) : 'PREMIUM'
 
       await prisma.subscription.upsert({
         where:  { stripeSubscriptionId: sub.id },
         create: {
-          userId:               sub.metadata.userId,
+          userId,
           stripeSubscriptionId: sub.id,
           stripePriceId:        sub.items.data[0].price.id,
           status,
@@ -60,7 +73,7 @@ router.post('/stripe', async (req: Request, res: Response) => {
 
       if (status === 'ACTIVE' || status === 'TRIALING') {
         await prisma.user.update({
-          where: { id: sub.metadata.userId },
+          where: { id: userId },
           data:  { plan: planMeta },
         })
       }
@@ -69,12 +82,18 @@ router.post('/stripe', async (req: Request, res: Response) => {
 
     case 'customer.subscription.deleted': {
       const sub = event.data.object as Stripe.Subscription
+      // Look up our own record instead of trusting event metadata
+      const record = await prisma.subscription.findUnique({ where: { stripeSubscriptionId: sub.id } })
+      if (!record) {
+        console.warn('[webhook] deletion for unknown subscription:', sub.id)
+        break
+      }
       await prisma.subscription.update({
         where: { stripeSubscriptionId: sub.id },
         data:  { status: 'CANCELED', cancelAtPeriodEnd: false },
       })
       await prisma.user.update({
-        where: { id: sub.metadata.userId },
+        where: { id: record.userId },
         data:  { plan: 'FREE' },
       })
       break
@@ -83,10 +102,14 @@ router.post('/stripe', async (req: Request, res: Response) => {
     case 'invoice.payment_failed': {
       const invoice = event.data.object as Stripe.Invoice
       if (invoice.subscription) {
-        await prisma.subscription.update({
-          where: { stripeSubscriptionId: invoice.subscription as string },
-          data:  { status: 'PAST_DUE' },
-        })
+        const subId = invoice.subscription as string
+        const exists = await prisma.subscription.findUnique({ where: { stripeSubscriptionId: subId } })
+        if (exists) {
+          await prisma.subscription.update({
+            where: { stripeSubscriptionId: subId },
+            data:  { status: 'PAST_DUE' },
+          })
+        }
       }
       break
     }
@@ -97,6 +120,6 @@ router.post('/stripe', async (req: Request, res: Response) => {
   }
 
   res.json({ received: true })
-})
+}))
 
 export default router
