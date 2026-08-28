@@ -12,6 +12,7 @@ model User {
   email            String        @unique
   passwordHash     String
   name             String
+  age              Int
   gender           Gender
   country          String        @default("")
   plan             Plan          @default(FREE)

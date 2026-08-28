@@ -16,6 +16,7 @@ router.get('/users', asyncHandler(async (_req: Request, res: Response) => {
       id: true,
       name: true,
       email: true,
+      age: true,
       gender: true,
       country: true,
       plan: true,
@@ -32,7 +33,7 @@ router.get('/users/:id', asyncHandler(async (req: Request, res: Response) => {
   const user = await prisma.user.findUnique({
     where: { id: req.params.id },
     select: {
-      id: true, name: true, email: true, gender: true, country: true,
+      id: true, name: true, email: true, age: true, gender: true, country: true,
       plan: true, emailVerified: true, createdAt: true, updatedAt: true,
       subscription: true,
     },

@@ -31,10 +31,14 @@ const registerLimiter = rateLimit({
   message: { error: 'Too many accounts created from this address, please try again later' },
 })
 
+// Nikah is 18+ only. Age eligibility is enforced here — not just in the
+// frontend wizard — because the frontend check is trivially bypassed by
+// anyone calling this endpoint directly.
 const RegisterSchema = z.object({
   name:     z.string().min(2).max(50),
   email:    z.string().email().max(254).transform(e => e.toLowerCase().trim()),
   password: z.string().min(8).max(72), // bcrypt compares at most 72 bytes
+  age:      z.number().int().min(18, 'You must be 18 or older to use Nikah.').max(100),
   gender:   z.enum(['BROTHER', 'SISTER']),
   country:  z.string().max(80).optional(),
 })
@@ -56,7 +60,7 @@ router.post('/register', registerLimiter, asyncHandler(async (req: Request, res:
     return
   }
 
-  const { name, email, password, gender, country } = parsed.data
+  const { name, email, password, age, gender, country } = parsed.data
   const passwordHash = await bcrypt.hash(password, 12)
 
   // Create the user first; the unique constraint (not a racy pre-check)
@@ -64,7 +68,7 @@ router.post('/register', registerLimiter, asyncHandler(async (req: Request, res:
   let user
   try {
     user = await prisma.user.create({
-      data: { name, email, passwordHash, gender, country: country ?? '' },
+      data: { name, email, passwordHash, age, gender, country: country ?? '' },
     })
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
