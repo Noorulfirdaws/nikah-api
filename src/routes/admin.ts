@@ -50,4 +50,34 @@ router.delete('/users/:id', asyncHandler(async (req: Request, res: Response) => 
   res.json({ deleted: true, id: req.params.id })
 }))
 
+// GET /api/admin/contact-messages — review submissions from the contact form.
+router.get('/contact-messages', asyncHandler(async (_req: Request, res: Response) => {
+  const messages = await prisma.contactMessage.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+  })
+  res.json({ count: messages.length, messages })
+}))
+
+// PATCH /api/admin/contact-messages/:id — mark a message resolved/open.
+router.patch('/contact-messages/:id', asyncHandler(async (req: Request, res: Response) => {
+  const status = req.body?.status
+  if (status !== 'OPEN' && status !== 'RESOLVED') {
+    res.status(400).json({ error: 'status must be OPEN or RESOLVED' })
+    return
+  }
+  const exists = await prisma.contactMessage.findUnique({ where: { id: req.params.id } })
+  if (!exists) { res.status(404).json({ error: 'Message not found' }); return }
+  const updated = await prisma.contactMessage.update({ where: { id: req.params.id }, data: { status } })
+  res.json(updated)
+}))
+
+// DELETE /api/admin/contact-messages/:id — remove a test/spam submission.
+router.delete('/contact-messages/:id', asyncHandler(async (req: Request, res: Response) => {
+  const exists = await prisma.contactMessage.findUnique({ where: { id: req.params.id } })
+  if (!exists) { res.status(404).json({ error: 'Message not found' }); return }
+  await prisma.contactMessage.delete({ where: { id: req.params.id } })
+  res.json({ deleted: true, id: req.params.id })
+}))
+
 export default router

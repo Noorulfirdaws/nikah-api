@@ -45,6 +45,24 @@ model Subscription {
   @@index([stripeSubscriptionId])
 }
 
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  subject   String   @default("")
+  message   String
+  status    ContactStatus @default(OPEN)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([status])
+}
+
+enum ContactStatus {
+  OPEN
+  RESOLVED
+}
+
 enum Gender {
   BROTHER
   SISTER

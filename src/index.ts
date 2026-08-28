@@ -8,6 +8,7 @@ import authRoutes         from './routes/auth'
 import subscriptionRoutes from './routes/subscriptions'
 import webhookRoutes      from './routes/webhooks'
 import adminRoutes        from './routes/admin'
+import contactRoutes      from './routes/contact'
 import { validateEnv } from './lib/env'
 import { errorHandler } from './middleware/errors'
 
@@ -89,6 +90,7 @@ app.use('/api/admin', rateLimit({
 app.use('/api/auth',          authRoutes)
 app.use('/api/subscriptions', subscriptionRoutes)
 app.use('/api/admin',         adminRoutes)
+app.use('/api/contact',       contactRoutes)  // has its own internal rate limiter
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
