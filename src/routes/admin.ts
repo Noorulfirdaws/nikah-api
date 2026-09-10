@@ -80,4 +80,21 @@ router.delete('/contact-messages/:id', asyncHandler(async (req: Request, res: Re
   res.json({ deleted: true, id: req.params.id })
 }))
 
+// GET /api/admin/newsletter — list newsletter subscribers.
+router.get('/newsletter', asyncHandler(async (_req: Request, res: Response) => {
+  const subscribers = await prisma.newsletterSubscriber.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: 500,
+  })
+  res.json({ count: subscribers.length, subscribers })
+}))
+
+// DELETE /api/admin/newsletter/:id — remove a test/spam subscriber.
+router.delete('/newsletter/:id', asyncHandler(async (req: Request, res: Response) => {
+  const exists = await prisma.newsletterSubscriber.findUnique({ where: { id: req.params.id } })
+  if (!exists) { res.status(404).json({ error: 'Subscriber not found' }); return }
+  await prisma.newsletterSubscriber.delete({ where: { id: req.params.id } })
+  res.json({ deleted: true, id: req.params.id })
+}))
+
 export default router

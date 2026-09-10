@@ -63,6 +63,15 @@ enum ContactStatus {
   RESOLVED
 }
 
+model NewsletterSubscriber {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  unsubscribed Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 enum Gender {
   BROTHER
   SISTER
